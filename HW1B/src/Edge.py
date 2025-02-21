@@ -63,7 +63,7 @@ def topLeftElem(img, sigma):
     smoothR = cv.GaussianBlur(xGradSquareR, (0,0), sigma)
     
     #Sum each color channel to produce final tensor and return (POSSIBLE MIN: = 0 POSSIBLE MAX = 3121200)
-    return cv.add(smoothB, cv.add(smoothG, smoothR))
+    return np.add(smoothB, np.add(smoothG, smoothR))
 
 #Function to compute gradient magnitude
 #Input: x- and y-gradients
@@ -91,7 +91,7 @@ def bottomRightElem(img, sigma):
     smoothR = cv.GaussianBlur(yGradSquareR, (0,0), sigma)
     
     #Sum each color channel to produce final tensor and return (POSSIBLE MIN: = 0 POSSIBLE MAX = 3121200)
-    return cv.add(smoothB, cv.add(smoothG, smoothR))
+    return np.add(smoothB, np.add(smoothG, smoothR))
 
 #Function to compute top-left/bottom-right tensor elements
 #Input: RGB image and sigma value for Gaussian filter
@@ -118,7 +118,7 @@ def otherElems(img, sigma):
     smoothR = cv.GaussianBlur(xyMultR, (0,0), sigma)
     
     #Sum each color channel to produce final tensor and return (POSSIBLE MIN: = -3121200 POSSIBLE MAX = 3121200)
-    return cv.add(smoothB, cv.add(smoothG, smoothR))
+    return np.add(smoothB, np.add(smoothG, smoothR))
 
 #Function to apply 2D Color Structure Tensor
 #Input: RGB image and sigma value for Gaussian filter + Output and filename array
@@ -175,7 +175,7 @@ def colorStructureTensor(img, sigma, imgOutputs, imgNames):
 #Input: Top-left and bottom-right tensor elements
 #Output: Trace (POSSIBLE MIN: = 0 POSSIBLE MAX = 6242400)
 def tensorTrace(topLeft, bottomRight):
-    return cv.add(topLeft, bottomRight)
+    return np.add(topLeft, bottomRight)
 
 
 #Get paths for input images, output directory, and small/large-scale sigma values
@@ -215,6 +215,9 @@ imgNames.append("yGradR")
 
 
 #Compute and save gradients for grayscale image
+imgOutputs.append(cv.cvtColor(img, cv.COLOR_BGR2GRAY))
+imgNames.append("Gray")
+
 grayXGrad = xGrad(cv.cvtColor(img, cv.COLOR_BGR2GRAY))
 imgOutputs.append(stretchToDisplayRange(grayXGrad, -1020, 1020).astype(np.uint8))
 imgNames.append("GrayXGrad")
