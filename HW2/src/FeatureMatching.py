@@ -121,6 +121,9 @@ def generateFeatureDescriptors(img, featCoor, rad):
     #Initialize array to hold descriptor list
     Dlist = []
     
+    #Extract image size
+    imgHeight, imgWidth = img.shape[:2]
+    
     #Iterate through featCoor list and extract descriptor for each
     for i in range(npoints):
         #Declare array to hold 5x5 RGB image of descriptor
@@ -129,10 +132,25 @@ def generateFeatureDescriptors(img, featCoor, rad):
         #Translate pixels around feature coordinate from image to descriptor
         for y in range(rad + 1):
             for x in range(rad + 1):
-                descriptor[rad + y][rad + x] = img[featCoor[i][0] + y][featCoor[i][1] + x]
-                descriptor[rad + y][rad - x] = img[featCoor[i][0] + y][featCoor[i][1] - x]
-                descriptor[rad - y][rad + x] = img[featCoor[i][0] - y][featCoor[i][1] + x]
-                descriptor[rad - y][rad - x] = img[featCoor[i][0] - y][featCoor[i][1] - x]
+                if (featCoor[i][0] + y < imgHeight and featCoor[i][1] + x < imgWidth):
+                    descriptor[rad + y][rad + x] = img[featCoor[i][0] + y][featCoor[i][1] + x]
+                else:
+                    descriptor[rad + y][rad + x] = 0
+                    
+                if (featCoor[i][0] + y < imgHeight and featCoor[i][1] - x > -1):
+                    descriptor[rad + y][rad - x] = img[featCoor[i][0] + y][featCoor[i][1] - x]
+                else:
+                    descriptor[rad + y][rad - x] = 0
+                    
+                if (featCoor[i][0] - y > -1 and featCoor[i][1] + x < imgWidth):
+                    descriptor[rad - y][rad + x] = img[featCoor[i][0] - y][featCoor[i][1] + x]
+                else:
+                    descriptor[rad - y][rad + x] = 0
+                    
+                if (featCoor[i][0] - y > -1 and featCoor[i][1] - x > -1):
+                    descriptor[rad - y][rad - x] = img[featCoor[i][0] - y][featCoor[i][1] - x]
+                else:
+                    descriptor[rad - y][rad - x] = 0
                 
         #Add descriptor to Dlist
         Dlist.append(descriptor)
@@ -192,13 +210,12 @@ def Distance2Matches_NearestMatch(Dist, Th2):
     for i in range(len(Dist)):
         #Ensure minimum match is within threshold
         if (np.min(Dist[i]) < Th2):
-            print(np.min(Dist[i]))
             #Declare array to hold individual match
             iMatch = []
             iMatch.append(i)
         
             #Append index of minimum match
-            iMatch.append(np.argmin(Dist[i]))
+            iMatch.append(int(np.argmin(Dist[i])))
         
             #Append match for i to output list
             matchList.append(iMatch)
@@ -273,6 +290,8 @@ Dist = computeDescriptorDistances(Dlist1, Dlist2)
 
 #Perform matching between descriptor lists
 matchList2 = Distance2Matches_NearestMatch(Dist, 5)
+print(len(matchList2))
+print(matchList2[0])
 
 
 #Save all output images
