@@ -7,6 +7,41 @@ import matplotlib.pyplot as plt
 from skimage.feature import peak_local_max
 from Edge import saveImages, topLeftElem, bottomRightElem, otherElems, tensorTrace, displayRangeLCS
 
+#Function to project feature points over image
+#Input: Image and feature point mask
+#output: Image with feature points projected
+def projectFeaturePoints(img, featMask, rad):
+    #Extract image shape
+    imgHeight, imgWidth = img.shape[:2]
+    
+    #Copy image to allow alteration
+    imgAlter = img.copy()
+
+    #Iterate through image and add feature points
+    for y in range(imgHeight):
+        for x in range(imgWidth):
+            if (featMask[y][x] == 255):
+                for yVar in range(rad):
+                    for xVar in range(rad):
+                        imgAlter[y+yVar][x+xVar][0] = 0
+                        imgAlter[y+yVar][x+xVar][1] = 0
+                        imgAlter[y+yVar][x+xVar][2] = 255
+                        
+                        imgAlter[y-yVar][x+xVar][0] = 0
+                        imgAlter[y-yVar][x+xVar][1] = 0
+                        imgAlter[y-yVar][x+xVar][2] = 255
+                        
+                        imgAlter[y+yVar][x-xVar][0] = 0
+                        imgAlter[y+yVar][x-xVar][1] = 0
+                        imgAlter[y+yVar][x-xVar][2] = 255
+                        
+                        imgAlter[y-yVar][x-xVar][0] = 0
+                        imgAlter[y-yVar][x-xVar][1] = 0
+                        imgAlter[y-yVar][x-xVar][2] = 255
+              
+    #Return modified image
+    return imgAlter
+
 #Function to calculate determinant of tensor matrix
 #Input: Auto-correlation matrix
 #Output: Determinant
@@ -51,7 +86,6 @@ def featureMeasure2Points(R, npoints):
     
     #Calculate local maxima
     featCoor = peak_local_max(R, threshold_abs = threshVal)
-    print(len(featCoor))
         
     #Connect feature coordinates to R-value
     featCoorVal = []
@@ -63,7 +97,6 @@ def featureMeasure2Points(R, npoints):
         
     #Sort feature coordinates by R-value, descending
     featCoorSorted = sorted(featCoorVal, key = lambda x: x[1], reverse = True)
-    print(len(featCoorSorted))
     
     #Declare array to hold properly formatted feature coordinates and image of point mask
     featCoorFinal = []
@@ -76,46 +109,171 @@ def featureMeasure2Points(R, npoints):
     
     #Return npoint largest maxima
     return featCoorFinal, featMask
+
+#Function to generate feature descriptors from list of feature points
+#Input: Original image and list of feature coordinates
+#Output: List of feature descriptors, indexed identically to the input feature coordinates
+#TO-DO: IMPLEMENT BETTER DESCRIPTOR
+def generateFeatureDescriptors(img, featCoor, rad):
+    #Determine npoints from featCoor length
+    npoints = len(featCoor)
+    
+    #Initialize array to hold descriptor list
+    Dlist = []
+    
+    #Iterate through featCoor list and extract descriptor for each
+    for i in range(npoints):
+        #Declare array to hold 5x5 RGB image of descriptor
+        descriptor = np.zeros((1 + rad * 2, 1 + rad * 2,3), dtype=np.uint8)
         
+        #Translate pixels around feature coordinate from image to descriptor
+        for y in range(rad + 1):
+            for x in range(rad + 1):
+                descriptor[rad + y][rad + x] = img[featCoor[i][0] + y][featCoor[i][1] + x]
+                descriptor[rad + y][rad - x] = img[featCoor[i][0] + y][featCoor[i][1] - x]
+                descriptor[rad - y][rad + x] = img[featCoor[i][0] - y][featCoor[i][1] + x]
+                descriptor[rad - y][rad - x] = img[featCoor[i][0] - y][featCoor[i][1] - x]
+                
+        #Add descriptor to Dlist
+        Dlist.append(descriptor)
+        
+    #Return list of descriptors
+    return Dlist
+
+#Function to calculate L1 Norm distance between two descriptors
+#Input: Two descriptors
+#Output: L1 Norm
+def l1Norm(desc1, desc2):
+    #Initialize variable to hold sum of differences between pixels
+    distSum = 0
+    
+    #Extract descriptor size
+    imgHeight, imgWidth = desc1.shape[:2]
+    
+    #Iterate through descriptors and calculate individual pixel distance, than add to running sum
+    for y in range(imgHeight):
+        for x in range(imgWidth):
+            distSum += np.abs(desc1[y][x] - desc2[y][x])
+            
+    #Return L1 Norm
+    return distSum
+
+#Function to calculate descriptor distances between two image descriptor lists
+#Input: Dlist of image 1 and Dlist of image 2
+#Output: Matrix, where Dist(i,j) is the distance between the ith descriptor of image 1 and the jth descriptor of image 2
+#TO-DO: TAILOR TO NEW DESCRIPTOR GENERATOR
+def computeDescriptorDistances(Dlist1, Dlist2):
+    #Initialize matrix to hold distances
+    Dist = []
+    
+    #Iterate through Dlists and calculate distances
+    for i in range(len(Dlist1)):
+        #Initialize list to hold distances from Dlist1[i]
+        iDist = []
+        
+        for j in range(len(Dlist2)):
+            #Append distance from Dlist2[j]
+            iDist.append(l1Norm(Dlist1[i], Dlist2[j]))
+            
+        #Append list of distances to final matrix
+        Dist.append(iDist)
+        
+    #Return matrix of distances
+    return Dist    
+
+#Function to determine nearest match of every descriptor across images
+#Input: Distance matrix and threshold value
+#Output: List of matches
+def Distance2Matches_NearestMatch(Dist, Th2):
+    #Initialize array to hold matches
+    matchList = []
+    
+    #Iterate through distance matrix and determine match for each feature descriptor
+    for i in range(len(Dist)):
+        #Ensure minimum match is within threshold
+        if (np.min(Dist[i]) < Th2):
+            print(np.min(Dist[i]))
+            #Declare array to hold individual match
+            iMatch = []
+            iMatch.append(i)
+        
+            #Append index of minimum match
+            iMatch.append(np.argmin(Dist[i]))
+        
+            #Append match for i to output list
+            matchList.append(iMatch)
+        
+    #Return list of matches
+    return matchList
 
 #Get paths for input images, output directory, and small/large-scale sigma values
 srcDir = os.path.dirname(os.path.abspath(__file__))
-inPath = str(srcDir + '\\' + sys.argv[1])
-outPath = str(srcDir + '\\' + sys.argv[2])
-sigma = float(sys.argv[3])
-npoints = int(sys.argv[4])
+inPath1 = str(srcDir + '\\' + sys.argv[1])
+inPath2 = str(srcDir + '\\' + sys.argv[2])
+outPath = str(srcDir + '\\' + sys.argv[3])
+sigma = float(sys.argv[4])
+npoints = int(sys.argv[5])
 
 
 #Read in input image
-img = cv.imread(inPath)
+img1 = cv.imread(inPath1)
+img2 = cv.imread(inPath2)
 
 
 #Create arrays to hold output images and their filenames, and add input
 imgOutputs = []
 imgNames = []
 
-imgOutputs.append(img)
-imgNames.append("Input")
+imgOutputs.append(img1)
+imgNames.append("Input1")
+imgOutputs.append(img2)
+imgNames.append("Input2")
 
 
-#Generate auto-correlation matrix
-matrix = genAutoCorrelationMatrix(img, sigma)
+#Generate auto-correlation matrices
+matrix1 = genAutoCorrelationMatrix(img1, sigma)
+matrix2 = genAutoCorrelationMatrix(img2, sigma)
 
 
 #Calculate feature response and save to output
-rVals = computeFeatureResponse(matrix)
+rVals1 = computeFeatureResponse(matrix1)
+rVals2 = computeFeatureResponse(matrix2)
 
-imgOutputs.append(rVals)
-imgNames.append("Edges")
-imgOutputs.append(displayRangeLCS(rVals))
-imgNames.append("EdgesLCS")
+imgOutputs.append(rVals1)
+imgNames.append("Edges1")
+imgOutputs.append(displayRangeLCS(rVals1))
+imgNames.append("EdgesLCS1")
+
+imgOutputs.append(rVals2)
+imgNames.append("Edges2")
+imgOutputs.append(displayRangeLCS(rVals2))
+imgNames.append("EdgesLCS2")
 
 
 #Calculate local maxima and save mask to output
-featCoor, featCoorMask = featureMeasure2Points(rVals, npoints)
+featCoor1, featCoorMask1 = featureMeasure2Points(rVals1, npoints)
+featCoor2, featCoorMask2 = featureMeasure2Points(rVals2, npoints)
 
-imgOutputs.append(featCoorMask)
-imgNames.append("FeaturePointMask")
+imgOutputs.append(featCoorMask1)
+imgNames.append("FeaturePointMask1")
+imgOutputs.append(projectFeaturePoints(img1, featCoorMask1, 2))
+imgNames.append("FeaturePoints1")
+
+imgOutputs.append(featCoorMask2)
+imgNames.append("FeaturePointMask2")
+imgOutputs.append(projectFeaturePoints(img2, featCoorMask2, 2))
+imgNames.append("FeaturePoints2")
+
+
+#Generate list of descriptors, then matrix of distances
+Dlist1 = generateFeatureDescriptors(img1, featCoor1, 10)
+Dlist2 = generateFeatureDescriptors(img2, featCoor2, 10)
+Dist = computeDescriptorDistances(Dlist1, Dlist2)
+
+
+#Perform matching between descriptor lists
+matchList2 = Distance2Matches_NearestMatch(Dist, 5)
+
 
 #Save all output images
 saveImages(outPath, imgOutputs, imgNames)
