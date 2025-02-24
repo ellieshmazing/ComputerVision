@@ -127,7 +127,7 @@ def generateFeatureDescriptors(img, featCoor, rad):
     #Iterate through featCoor list and extract descriptor for each
     for i in range(npoints):
         #Declare array to hold 5x5 RGB image of descriptor
-        descriptor = np.zeros((1 + rad * 2, 1 + rad * 2,3), dtype=np.uint8)
+        descriptor = np.zeros((1 + rad * 2, 1 + rad * 2,3), dtype=np.int16)
         
         #Translate pixels around feature coordinate from image to descriptor
         for y in range(rad + 1):
@@ -163,7 +163,7 @@ def generateFeatureDescriptors(img, featCoor, rad):
 #Output: L1 Norm
 def l1Norm(desc1, desc2):
     #Initialize variable to hold sum of differences between pixels
-    distSum = 0
+    distSum = np.zeros(1, dtype=np.int64)
     
     #Extract descriptor size
     imgHeight, imgWidth = desc1.shape[:2]
@@ -171,7 +171,9 @@ def l1Norm(desc1, desc2):
     #Iterate through descriptors and calculate individual pixel distance, than add to running sum
     for y in range(imgHeight):
         for x in range(imgWidth):
-            distSum += np.abs(desc1[y][x] - desc2[y][x])
+            distSum += np.abs(desc1[y][x][0] - desc2[y][x][0])
+            distSum += np.abs(desc1[y][x][1] - desc2[y][x][1])
+            distSum += np.abs(desc1[y][x][2] - desc2[y][x][2])
             
     #Return L1 Norm
     return distSum
@@ -223,13 +225,59 @@ def Distance2Matches_NearestMatch(Dist, Th2):
     #Return list of matches
     return matchList
 
+#Function to read transformation matrix file to array
+#Input: Path to transformation matrix
+#Output: 3x3 array of float values
+def readTransMatFile(transMatPath):
+    #Open and read-in transformation matrix file
+    transMatFile = open(transMatPath, 'r')
+    transMatCont = transMatFile.read()
+
+    #Correctly format transformation matrix into a list
+    transMatCont = transMatCont.replace('  ', ',')
+    transMatCont = transMatCont.replace('\n', ',')
+    transMatCont = transMatCont.replace(' ', '')
+    transMatListTemp = transMatCont.split(",")
+    
+    #Remove all empty entries
+    transMatList = []
+    for x in transMatListTemp:
+        if (x != ''):
+            transMatList.append(x)
+    
+    #Initialize and populate array to hold transformation matrix values for each line
+    transMat = []
+    
+    transMatL = []
+    transMatL.append(float(transMatList[0]))
+    transMatL.append(float(transMatList[1]))
+    transMatL.append(float(transMatList[2]))
+    transMat.append(transMatL)
+    
+    transMatL = []
+    transMatL.append(float(transMatList[3]))
+    transMatL.append(float(transMatList[4]))
+    transMatL.append(float(transMatList[5]))
+    transMat.append(transMatL)
+    
+    transMatL = []
+    transMatL.append(float(transMatList[6]))
+    transMatL.append(float(transMatList[7]))
+    transMatL.append(float(transMatList[8]))
+    transMat.append(transMatL)
+    
+    #Return transformation matrix
+    return transMat
+
+
 #Get paths for input images, output directory, and small/large-scale sigma values
 srcDir = os.path.dirname(os.path.abspath(__file__))
 inPath1 = str(srcDir + '\\' + sys.argv[1])
 inPath2 = str(srcDir + '\\' + sys.argv[2])
 outPath = str(srcDir + '\\' + sys.argv[3])
-sigma = float(sys.argv[4])
-npoints = int(sys.argv[5])
+transMatPath = str(srcDir + '\\' + sys.argv[4])
+sigma = float(sys.argv[5])
+npoints = int(sys.argv[6])
 
 
 #Read in input image
@@ -283,15 +331,20 @@ imgNames.append("FeaturePoints2")
 
 
 #Generate list of descriptors, then matrix of distances
-Dlist1 = generateFeatureDescriptors(img1, featCoor1, 10)
-Dlist2 = generateFeatureDescriptors(img2, featCoor2, 10)
+Dlist1 = generateFeatureDescriptors(img1, featCoor1, 2)
+Dlist2 = generateFeatureDescriptors(img2, featCoor2, 2)
 Dist = computeDescriptorDistances(Dlist1, Dlist2)
 
 
 #Perform matching between descriptor lists
-matchList2 = Distance2Matches_NearestMatch(Dist, 5)
+matchList2 = Distance2Matches_NearestMatch(Dist, 1500)
+print(matchList2)
 print(len(matchList2))
-print(matchList2[0])
+
+
+#Read in transformation matrix file
+transMat = readTransMatFile(transMatPath)
+
 
 
 #Save all output images
