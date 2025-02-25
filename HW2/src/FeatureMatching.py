@@ -225,6 +225,59 @@ def Distance2Matches_NearestMatch(Dist, Th2):
     #Return list of matches
     return matchList
 
+#Function to determine match based on distance threshold of every descriptor across images
+#Input: Distance matrix and threshold value
+#Output: List of matches
+def Distance2Matches_DistThresh(Dist, Th1):
+    #Initialize array to hold matches
+    matchList = []
+    
+    #Iterate through distance matrix and determine match for each feature descriptor
+    for i in range(len(Dist)):
+        for j in range(len(Dist[i])):
+            #Check if match distance is less than threshold
+            if (Dist[i][j] < Th1):
+                #Properly format match then append to match list
+                iMatch = []
+                iMatch.append(i)
+                iMatch.append(j)
+                
+                matchList.append(iMatch)
+        
+    #Return list of matches
+    return matchList
+
+#Function to determine matches based on nearest neighbor ratio for every descriptor across images
+#Input: Distance matrix and threshold value
+#Output: List of matches
+def Distance2Matches_NearestRatio(Dist, Th3):
+    #Initialize array to hold matches
+    matchList = []
+    
+    #Iterate through distance matrix and determine match for each feature descriptor
+    for i in range(len(Dist)):
+        #Extract two nearest neighbor distances
+        min = np.min(Dist[i])
+        minIndex = int(np.argmin(Dist[i]))
+        
+        distTemp = np.delete(Dist[i], minIndex)
+        secMin = np.min(distTemp)
+        
+        #Ensure ratio is within threshold
+        if (min / secMin < Th3):
+            #Declare array to hold individual match
+            iMatch = []
+            iMatch.append(i)
+        
+            #Append index of minimum match
+            iMatch.append(minIndex)
+        
+            #Append match for i to output list
+            matchList.append(iMatch)
+        
+    #Return list of matches
+    return matchList
+
 #Function to read transformation matrix file to array
 #Input: Path to transformation matrix
 #Output: 3x3 array of float values
@@ -312,7 +365,7 @@ def truePositiveCount(pointDistances, tpThresh):
 #Function to plot original descriptor and matched descriptor
 #Input: Original image, matched image, matchList, featCoor1, and featCoor2
 #Output: None
-def plotMatches(img1, img2, matchList, featCoor1, featCoor2, outPath):
+def plotMatches(img1, img2, matchList, featCoor1, featCoor2, outPath, descriptor):
     #Initialize new image to hold output and set each side equal to an initial image
     imgHeight, imgWidth = img1.shape[:2]
     imgMatch = np.zeros((imgHeight, 2 * imgWidth, 3), dtype=np.uint8)
@@ -339,7 +392,7 @@ def plotMatches(img1, img2, matchList, featCoor1, featCoor2, outPath):
         plt.plot(imgWidth + featCoor2[matchList[i][1]][1], featCoor2[matchList[i][1]][0], marker='x', color='yellow', linewidth=1)
         plt.plot(xCoors, yCoors, color="yellow")
         
-    plt.savefig(outPath + "Matches.jpg")
+    plt.savefig(outPath + "Matches" + descriptor + ".jpg")
         
     
 
@@ -410,15 +463,20 @@ Dist = computeDescriptorDistances(Dlist1, Dlist2)
 
 
 #Perform matching between descriptor lists
+matchList1 = Distance2Matches_DistThresh(Dist, 1500)
 matchList2 = Distance2Matches_NearestMatch(Dist, 1500)
+matchList3 = Distance2Matches_NearestRatio(Dist, 3)
 
 
 #Read in transformation matrix file
 transMat = readTransMatFile(transMatPath)
-matchListPD = matchListPointDistances(matchList2, featCoor1, featCoor2, transMat)
-print(truePositiveCount(matchListPD, 50))
+matchList1PD = matchListPointDistances(matchList1, featCoor1, featCoor2, transMat)
+matchList2PD = matchListPointDistances(matchList2, featCoor1, featCoor2, transMat)
+matchList3PD = matchListPointDistances(matchList3, featCoor1, featCoor2, transMat)
 
-plotMatches(img1, img2, matchList2, featCoor1, featCoor2, outPath)
+plotMatches(img1, img2, matchList1, featCoor1, featCoor2, outPath, "DistanceThreshold")
+plotMatches(img1, img2, matchList2, featCoor1, featCoor2, outPath, "NearestMatch")
+plotMatches(img1, img2, matchList3, featCoor1, featCoor2, outPath, "NearestRatio")
 
 
 #Save all output images
