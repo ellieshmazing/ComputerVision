@@ -269,6 +269,79 @@ def readTransMatFile(transMatPath):
     #Return transformation matrix
     return transMat
 
+#Function to calculate pixel distance between estimated position and matched point's position
+#Input: Original point, matched position, and transformation matrix
+#Output: Pixel distance between estimated position and matched point's position
+def estimatedPointError(origCoor, matchCoor, transMat):
+    #Append one to end of original coordinate for matrix multiplication
+    origCoorMatrix = np.append(origCoor, 1)
+    
+    #Calculate estimated coordinate based on transformation matrix
+    estimatedCoor = np.matmul(transMat, origCoorMatrix)
+    
+    #Return pixel distance between matched coordinate and estimated coordinate
+    return np.sqrt(np.pow(estimatedCoor[0] - matchCoor[0], 2) + np.pow(estimatedCoor[1] - matchCoor[1], 2))
+
+#Function to calculate pixel distance between all matches
+#Input: matchList, featCoor1, featCoor2, and transMat
+#Output: List of pixel distances indexed like MatchList
+def matchListPointDistances(matchList, featCoor1, featCoor2, transMat):
+    #Initialize array to hold output
+    pointDistances = []
+    
+    #Iterate through matchList to calculate all pixel distances
+    for i in range(len(matchList)):
+        pointDistances.append(estimatedPointError(featCoor1[matchList[i][0]], featCoor2[matchList[i][1]], transMat))
+        
+    #Return error list
+    return pointDistances
+    
+#Function to count true positives for matchlist
+#Input: Point distances and true positive threshold
+#Output: Number of true positives
+def truePositiveCount(pointDistances, tpThresh):
+    #Count number of pixel distances less than the true positive threshold
+    tpCount = 0
+    for x in pointDistances:
+        if (x < tpThresh):
+            tpCount += 1
+            
+    #Return true positive count
+    return tpCount
+
+#Function to plot original descriptor and matched descriptor
+#Input: Original image, matched image, matchList, featCoor1, and featCoor2
+#Output: None
+def plotMatches(img1, img2, matchList, featCoor1, featCoor2, outPath):
+    #Initialize new image to hold output and set each side equal to an initial image
+    imgHeight, imgWidth = img1.shape[:2]
+    imgMatch = np.zeros((imgHeight, 2 * imgWidth, 3), dtype=np.uint8)
+    for y in range(imgHeight):
+        for x in range(imgWidth):
+            imgMatch[y][x] = img1[y][x]
+            imgMatch[y][imgWidth + x] = img2[y][x]
+            
+            
+    #Load new image into MatPlot
+    plt.imshow(imgMatch)
+    
+    #For every match, plot the descriptor points and a line connecting them
+    for i in range(len(matchList)):
+        xCoors = []
+        xCoors.append(featCoor1[matchList[i][0]][1])
+        xCoors.append(imgWidth + featCoor2[matchList[i][1]][1])
+        
+        yCoors = []
+        yCoors.append(featCoor1[matchList[i][0]][0])
+        yCoors.append(featCoor2[matchList[i][1]][0])
+        
+        plt.plot(featCoor1[matchList[i][0]][1], featCoor1[matchList[i][0]][0], marker='x', color='yellow')
+        plt.plot(imgWidth + featCoor2[matchList[i][1]][1], featCoor2[matchList[i][1]][0], marker='x', color='yellow', linewidth=1)
+        plt.plot(xCoors, yCoors, color="yellow")
+        
+    plt.savefig(outPath + "Matches.jpg")
+        
+    
 
 #Get paths for input images, output directory, and small/large-scale sigma values
 srcDir = os.path.dirname(os.path.abspath(__file__))
@@ -338,13 +411,14 @@ Dist = computeDescriptorDistances(Dlist1, Dlist2)
 
 #Perform matching between descriptor lists
 matchList2 = Distance2Matches_NearestMatch(Dist, 1500)
-print(matchList2)
-print(len(matchList2))
 
 
 #Read in transformation matrix file
 transMat = readTransMatFile(transMatPath)
+matchListPD = matchListPointDistances(matchList2, featCoor1, featCoor2, transMat)
+print(truePositiveCount(matchListPD, 50))
 
+plotMatches(img1, img2, matchList2, featCoor1, featCoor2, outPath)
 
 
 #Save all output images
