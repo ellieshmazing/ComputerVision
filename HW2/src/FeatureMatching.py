@@ -5,7 +5,23 @@ import cv2 as cv
 import numpy as np
 import matplotlib.pyplot as plt
 from skimage.feature import peak_local_max
-from Edge import saveImages, topLeftElem, bottomRightElem, otherElems, tensorTrace, displayRangeLCS
+from Edge import saveImages, topLeftElem, bottomRightElem, otherElems, xGrad, yGrad, tensorTrace, gradMag, displayRangeLCS
+
+
+#Function to compute gradient orientation for an image
+#Input: x- and y-gradients for image
+#Output: Image-like array with gradient orientation values for each point
+def gradOrientation(xGrad, yGrad):
+    #Calculate arctan of gradients, default to vertical when xGradient is 0
+    return np.arctan(np.divide(yGrad, xGrad, out = np.full_like(xGrad, np.pi / 2), where = xGrad != 0))
+
+#Helper function to handle generating gradient magnitude and orientation for RGB image
+#Input: RGB image
+#Output: Gradient magnitude and orientation
+def gradMagOrHelper(img):
+    gradMagnitude = gradMag(np.add(xGrad(img1[:,:,0]), np.add(xGrad(img1[:,:,1]), xGrad(img1[:,:,2]))), np.add(yGrad(img1[:,:,0]), np.add(yGrad(img1[:,:,1]), yGrad(img1[:,:,2]))))
+    gradOr = gradOrientation(np.add(xGrad(img1[:,:,0]), np.add(xGrad(img1[:,:,1]), xGrad(img1[:,:,2]))), np.add(yGrad(img1[:,:,0]), np.add(yGrad(img1[:,:,1]), yGrad(img1[:,:,2]))))
+    return gradMagnitude, gradOr
 
 #Function to project feature points over image
 #Input: Image and feature point mask
@@ -114,7 +130,7 @@ def featureMeasure2Points(R, npoints):
 #Input: Original image and list of feature coordinates
 #Output: List of feature descriptors, indexed identically to the input feature coordinates
 #TO-DO: IMPLEMENT BETTER DESCRIPTOR
-def generateFeatureDescriptors(img, featCoor, rad):
+def generateFeatureDescriptorsANT(img, featCoor, rad):
     #Determine npoints from featCoor length
     npoints = len(featCoor)
     
@@ -157,6 +173,19 @@ def generateFeatureDescriptors(img, featCoor, rad):
         
     #Return list of descriptors
     return Dlist
+
+#Function to generate feature descriptors from list of feature points
+#Input: Original image and list of feature coordinates
+#Output: List of feature descriptors, indexed identically to the input feature coordinates
+def generateFeatureDescriptors(img, featCoor):
+    #Determine npoints from featCoor length
+    npoints = len(featCoor)
+    
+    #Initialize array to hold descriptor list
+    Dlist = []
+    
+    #Extract image size
+    imgHeight, imgWidth = img.shape[:2]
 
 #Function to calculate L1 Norm distance between two descriptors
 #Input: Two descriptors
