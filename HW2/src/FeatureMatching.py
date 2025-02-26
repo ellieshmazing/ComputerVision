@@ -40,8 +40,8 @@ def gradOrientation(xGrad, yGrad):
 #Input: RGB image
 #Output: Gradient magnitude and orientation
 def gradMagOrHelper(img):
-    gradMagnitude = gradMag(np.add(xGrad(img1[:,:,0]), np.add(xGrad(img1[:,:,1]), xGrad(img1[:,:,2]))), np.add(yGrad(img1[:,:,0]), np.add(yGrad(img1[:,:,1]), yGrad(img1[:,:,2]))))
-    gradOr = gradOrientation(np.add(xGrad(img1[:,:,0]), np.add(xGrad(img1[:,:,1]), xGrad(img1[:,:,2]))), np.add(yGrad(img1[:,:,0]), np.add(yGrad(img1[:,:,1]), yGrad(img1[:,:,2]))))
+    gradMagnitude = gradMag(np.add(xGrad(img[:,:,0]), np.add(xGrad(img[:,:,1]), xGrad(img[:,:,2]))), np.add(yGrad(img[:,:,0]), np.add(yGrad(img[:,:,1]), yGrad(img[:,:,2]))))
+    gradOr = gradOrientation(np.add(xGrad(img[:,:,0]), np.add(xGrad(img[:,:,1]), xGrad(img[:,:,2]))), np.add(yGrad(img[:,:,0]), np.add(yGrad(img[:,:,1]), yGrad(img[:,:,2]))))
     return gradMagnitude, gradOr
 
 #Function to project feature points over image
@@ -124,13 +124,18 @@ def featureMeasure2Points(R, npoints):
     #Calculate local maxima
     featCoor = peak_local_max(R, threshold_abs = threshVal)
         
+    #Extract image size
+    imgHeight, imgWidth = R.shape[:2]
+    
     #Connect feature coordinates to R-value
     featCoorVal = []
     for x in range(len(featCoor)):
-        coorVal = []
-        coorVal.append(featCoor[x])
-        coorVal.append(R[featCoor[x][0]][featCoor[x][1]])
-        featCoorVal.append(coorVal)
+        #Ensure feature is far enough away from image borders to be represented with SIFT
+        if (featCoor[x][0] > 8 and featCoor[x][0] < imgWidth - 8 and featCoor[x][1] > 8 and featCoor[x][1] < imgHeight - 8):
+            coorVal = []
+            coorVal.append(featCoor[x])
+            coorVal.append(R[featCoor[x][0]][featCoor[x][1]])
+            featCoorVal.append(coorVal)
         
     #Sort feature coordinates by R-value, descending
     featCoorSorted = sorted(featCoorVal, key = lambda x: x[1], reverse = True)
@@ -262,13 +267,13 @@ def l1Norm(desc1, desc2):
 #Output: Euclidian distance
 def euclidianDistance(desc1, desc2):
     #Initialize variable to hold sum of distances between each descriptor subsection
-    totalDist = np.zeros(1, dtype=np.float128)
+    totalDist = np.zeros(1, dtype=np.float64)
     
     #Iterate through 4x4 subsection of descriptors to calculate distance, then add to sum
     for i in range(4):
         for j in range(4):
             #Sum squared difference for each histogram bin
-            squarDiffSum = np.zeros(1, dtype=np.float128)
+            squarDiffSum = np.zeros(1, dtype=np.float64)
             for k in range(8):
                 squarDiffSum += np.pow(desc1[i][j][k] - desc2[i][j][k], 2)
                 
@@ -448,11 +453,18 @@ def readTransMatFile(transMatPath):
 #Input: Original point, matched position, and transformation matrix
 #Output: Pixel distance between estimated position and matched point's position
 def estimatedPointError(origCoor, matchCoor, transMat):
-    #Append one to end of original coordinate for matrix multiplication
-    origCoorMatrix = np.append(origCoor, 1)
+    #Format original coordinate as matrix with 1 at end
+    #origCoorMatrix = np.append(origCoor, 1)
+    origCoorMatrix = np.ones((3,1))
+    origCoorMatrix[0][0] = origCoor[0]
+    origCoorMatrix[1][0] = origCoor[1]
+    origCoorMatrix[2][0] = 1
     
     #Calculate estimated coordinate based on transformation matrix
     estimatedCoor = np.matmul(transMat, origCoorMatrix)
+    print(f'Orig {origCoor}')
+    print(estimatedCoor)
+    print(matchCoor)
     
     #Return pixel distance between matched coordinate and estimated coordinate
     return np.sqrt(np.pow(estimatedCoor[0] - matchCoor[0], 2) + np.pow(estimatedCoor[1] - matchCoor[1], 2))
@@ -585,8 +597,8 @@ Dist = computeDescriptorDistances(Dlist1, Dlist2)
 
 
 #Perform matching between descriptor lists
-matchList1 = Distance2Matches_DistThresh(Dist, 1500)
-matchList2 = Distance2Matches_NearestMatch(Dist, 1500)
+matchList1 = Distance2Matches_DistThresh(Dist, 30000)
+matchList2 = Distance2Matches_NearestMatch(Dist, 30000)
 matchList3 = Distance2Matches_NearestRatio(Dist, 3)
 
 
@@ -600,6 +612,11 @@ plotMatches(img1, img2, matchList1, featCoor1, featCoor2, outPath, "DistanceThre
 plotMatches(img1, img2, matchList2, featCoor1, featCoor2, outPath, "NearestMatch")
 plotMatches(img1, img2, matchList3, featCoor1, featCoor2, outPath, "NearestRatio")
 
+
+#Calculate true positive rate
+print(f'For distance threshold, number correct out of {len(matchList1PD)} matches: {truePositiveCount(matchList1PD, 5)}')
+print(f'For nearest match, number correct out of {len(matchList2PD)} matches: {truePositiveCount(matchList2PD, 5)}')
+print(f'For nearest neighbor ratio, number correct out of {len(matchList3PD)} matches: {truePositiveCount(matchList3PD, 5)}')
 
 #Save all output images
 saveImages(outPath, imgOutputs, imgNames)
