@@ -13,7 +13,28 @@ from Edge import saveImages, topLeftElem, bottomRightElem, otherElems, xGrad, yG
 #Output: Image-like array with gradient orientation values for each point
 def gradOrientation(xGrad, yGrad):
     #Calculate arctan of gradients, default to vertical when xGradient is 0
-    return np.arctan(np.divide(yGrad, xGrad, out = np.full_like(xGrad, np.pi / 2), where = xGrad != 0))
+    tempOr = np.arctan(np.divide(yGrad, xGrad, out = np.full_like(xGrad, np.pi / 2), where = xGrad != 0))
+    
+    #Extract image size attributes
+    imgHeight, imgWidth = xGrad.shape[:2]
+    
+    #Iterate through orientations and adjust direction
+    for y in range(imgHeight):
+        for x in range(imgWidth):
+            #Due to avoiding divide by 0, all gradients where xGrad = 0 are set to pi/2
+            #Adjust these to negative if necessary
+            if (tempOr[y][x] == np.pi / 2 and yGrad[y][x] < 0):
+                tempOr[y][x] = -np.pi / 2
+                
+            #np.arctan returns within [-pi/2, pi/2], so adjust direction to other half of unit circle if xGrad is negative
+            if (xGrad[y][x] < 0):
+                tempOr[y][x] += np.pi
+                
+            #Add pi/2 to ensure positive values to simplify later calculations
+            tempOr[y][x] += np.pi / 2
+                
+    #Return adjusted gradient calculations
+    return tempOr
 
 #Helper function to handle generating gradient magnitude and orientation for RGB image
 #Input: RGB image
@@ -184,8 +205,37 @@ def generateFeatureDescriptors(img, featCoor):
     #Initialize array to hold descriptor list
     Dlist = []
     
-    #Extract image size
-    imgHeight, imgWidth = img.shape[:2]
+    #Get gradient magnitude and orientation
+    gradMagnitude, gradOrient = gradMagOrHelper(img)
+    
+    #Iterate through featCoor list and extract descriptor for each
+    for i in range(npoints):
+        #Declare array to hold descriptor (4x4 for smaller sections, and 8 for bins in HoG)
+        #Bin index correlates with its orientaiton, increasing by pi/4 from 0 - 2pi
+        desc = np.zeros((4,4,8), dtype=np.float64)
+        
+        #For loops to iterate through each array subsection
+        for subY in range(4):
+            for subX in range(4):
+                #For loops to iterate through 4x4 sample contained in each subsection
+                for sampY in range(4):
+                    for sampX in range(4):
+                        #Get pixel magnitude and orientation for sample location
+                        pixelMag = gradMagnitude[featCoor[i][0] - 8 + (4 * subY) + sampY][featCoor[i][1] - 8 + (4 * subX) + sampX]
+                        pixelOrient = int(np.round(np.divide(gradOrient[featCoor[i][0] - 8 + (4 * subY) + sampY][featCoor[i][1] - 8 + (4 * subX) + sampX], np.pi / 4)))
+                        
+                        #Adjust rounding to fit into bins
+                        if (pixelOrient == 8):
+                            pixelOrient = 7
+                        
+                        #Increase bin of appropriate orientation by the pixel's gradient magnitude
+                        desc[subY][subX][pixelOrient] += pixelMag
+                        
+        #Add descriptor to Dlist
+        Dlist.append(desc)
+        
+    #Return list of descriptors
+    return Dlist
 
 #Function to calculate L1 Norm distance between two descriptors
 #Input: Two descriptors
@@ -207,11 +257,32 @@ def l1Norm(desc1, desc2):
     #Return L1 Norm
     return distSum
 
+#Function to calculate Euclidian distance between two SIFT descriptors
+#Input: Two descriptors
+#Output: Euclidian distance
+def euclidianDistance(desc1, desc2):
+    #Initialize variable to hold sum of distances between each descriptor subsection
+    totalDist = np.zeros(1, dtype=np.float128)
+    
+    #Iterate through 4x4 subsection of descriptors to calculate distance, then add to sum
+    for i in range(4):
+        for j in range(4):
+            #Sum squared difference for each histogram bin
+            squarDiffSum = np.zeros(1, dtype=np.float128)
+            for k in range(8):
+                squarDiffSum += np.pow(desc1[i][j][k] - desc2[i][j][k], 2)
+                
+            #Add square root to distance sum
+            totalDist += np.sqrt(squarDiffSum)
+            
+    #Return total distance
+    return totalDist
+
 #Function to calculate descriptor distances between two image descriptor lists
 #Input: Dlist of image 1 and Dlist of image 2
 #Output: Matrix, where Dist(i,j) is the distance between the ith descriptor of image 1 and the jth descriptor of image 2
 #TO-DO: TAILOR TO NEW DESCRIPTOR GENERATOR
-def computeDescriptorDistances(Dlist1, Dlist2):
+def computeDescriptorDistancesANT(Dlist1, Dlist2):
     #Initialize matrix to hold distances
     Dist = []
     
@@ -223,6 +294,28 @@ def computeDescriptorDistances(Dlist1, Dlist2):
         for j in range(len(Dlist2)):
             #Append distance from Dlist2[j]
             iDist.append(l1Norm(Dlist1[i], Dlist2[j]))
+            
+        #Append list of distances to final matrix
+        Dist.append(iDist)
+        
+    #Return matrix of distances
+    return Dist    
+
+#Function to calculate descriptor distances between two image descriptor lists
+#Input: Dlist of image 1 and Dlist of image 2
+#Output: Matrix, where Dist(i,j) is the distance between the ith descriptor of image 1 and the jth descriptor of image 2
+def computeDescriptorDistances(Dlist1, Dlist2):
+    #Initialize matrix to hold distances
+    Dist = []
+    
+    #Iterate through Dlists and calculate distances
+    for i in range(len(Dlist1)):
+        #Initialize list to hold distances from Dlist1[i]
+        iDist = []
+        
+        for j in range(len(Dlist2)):
+            #Append distance from Dlist2[j]
+            iDist.append(euclidianDistance(Dlist1[i], Dlist2[j]))
             
         #Append list of distances to final matrix
         Dist.append(iDist)
@@ -486,8 +579,8 @@ imgNames.append("FeaturePoints2")
 
 
 #Generate list of descriptors, then matrix of distances
-Dlist1 = generateFeatureDescriptors(img1, featCoor1, 2)
-Dlist2 = generateFeatureDescriptors(img2, featCoor2, 2)
+Dlist1 = generateFeatureDescriptors(img1, featCoor1)
+Dlist2 = generateFeatureDescriptors(img2, featCoor2)
 Dist = computeDescriptorDistances(Dlist1, Dlist2)
 
 
