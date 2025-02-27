@@ -453,21 +453,14 @@ def readTransMatFile(transMatPath):
 #Input: Original point, matched position, and transformation matrix
 #Output: Pixel distance between estimated position and matched point's position
 def estimatedPointError(origCoor, matchCoor, transMat):
-    #Format original coordinate as matrix with 1 at end
-    #origCoorMatrix = np.append(origCoor, 1)
-    origCoorMatrix = np.ones((3,1))
-    origCoorMatrix[0][0] = origCoor[0]
-    origCoorMatrix[1][0] = origCoor[1]
-    origCoorMatrix[2][0] = 1
-    
     #Calculate estimated coordinate based on transformation matrix
-    estimatedCoor = np.matmul(transMat, origCoorMatrix)
-    print(f'Orig {origCoor}')
-    print(estimatedCoor)
-    print(matchCoor)
+    estimatedCoor = np.ones((3))
+    estimatedCoor[0] = origCoor[1] * transMat[0][0] + origCoor[0] * transMat[0][1] + transMat[0][2]
+    estimatedCoor[1] = origCoor[1] * transMat[1][0] + origCoor[0] * transMat[1][1] + transMat[1][2]
+    estimatedCoor[2] = origCoor[1] * transMat[2][0] + origCoor[0] * transMat[2][1] + transMat[2][2]
     
     #Return pixel distance between matched coordinate and estimated coordinate
-    return np.sqrt(np.pow(estimatedCoor[0] - matchCoor[0], 2) + np.pow(estimatedCoor[1] - matchCoor[1], 2))
+    return np.sqrt(np.pow(estimatedCoor[1] - matchCoor[0], 2) + np.pow(estimatedCoor[0] - matchCoor[1], 2))
 
 #Function to calculate pixel distance between all matches
 #Input: matchList, featCoor1, featCoor2, and transMat
@@ -536,8 +529,13 @@ inPath1 = str(srcDir + '\\' + sys.argv[1])
 inPath2 = str(srcDir + '\\' + sys.argv[2])
 outPath = str(srcDir + '\\' + sys.argv[3])
 transMatPath = str(srcDir + '\\' + sys.argv[4])
-sigma = float(sys.argv[5])
-npoints = int(sys.argv[6])
+sigma1 = float(sys.argv[5])
+sigma2 = float(sys.argv[6])
+npoints = int(sys.argv[7])
+
+#Create output directory if nonexistent
+if (not os.path.exists(outPath)):
+    os.mkdir(outPath)
 
 
 #Read in input image
@@ -556,8 +554,8 @@ imgNames.append("Input2")
 
 
 #Generate auto-correlation matrices
-matrix1 = genAutoCorrelationMatrix(img1, sigma)
-matrix2 = genAutoCorrelationMatrix(img2, sigma)
+matrix1 = genAutoCorrelationMatrix(img1, sigma1)
+matrix2 = genAutoCorrelationMatrix(img2, sigma2)
 
 
 #Calculate feature response and save to output
@@ -599,7 +597,7 @@ Dist = computeDescriptorDistances(Dlist1, Dlist2)
 #Perform matching between descriptor lists
 matchList1 = Distance2Matches_DistThresh(Dist, 30000)
 matchList2 = Distance2Matches_NearestMatch(Dist, 30000)
-matchList3 = Distance2Matches_NearestRatio(Dist, 3)
+matchList3 = Distance2Matches_NearestRatio(Dist, .8)
 
 
 #Read in transformation matrix file
