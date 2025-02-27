@@ -47,37 +47,26 @@ def gradMagOrHelper(img):
 #Function to project feature points over image
 #Input: Image and feature point mask
 #output: Image with feature points projected
-def projectFeaturePoints(img, featMask, rad):
+def projectFeaturePoints(img, featMask, descriptor):
     #Extract image shape
     imgHeight, imgWidth = img.shape[:2]
     
     #Copy image to allow alteration
     imgAlter = img.copy()
+    
+    #Load image into MatPlot
+    plt.imshow(imgAlter)
+    plt.axis('off')
 
     #Iterate through image and add feature points
     for y in range(imgHeight):
         for x in range(imgWidth):
             if (featMask[y][x] == 255):
-                for yVar in range(rad):
-                    for xVar in range(rad):
-                        imgAlter[y+yVar][x+xVar][0] = 0
-                        imgAlter[y+yVar][x+xVar][1] = 0
-                        imgAlter[y+yVar][x+xVar][2] = 255
-                        
-                        imgAlter[y-yVar][x+xVar][0] = 0
-                        imgAlter[y-yVar][x+xVar][1] = 0
-                        imgAlter[y-yVar][x+xVar][2] = 255
-                        
-                        imgAlter[y+yVar][x-xVar][0] = 0
-                        imgAlter[y+yVar][x-xVar][1] = 0
-                        imgAlter[y+yVar][x-xVar][2] = 255
-                        
-                        imgAlter[y-yVar][x-xVar][0] = 0
-                        imgAlter[y-yVar][x-xVar][1] = 0
-                        imgAlter[y-yVar][x-xVar][2] = 255
+                plt.plot(x, y, marker = 'x', color = 'yellow')
               
-    #Return modified image
-    return imgAlter
+    #Save modified image then close plot
+    plt.savefig(outPath + "FeaturePoints" + descriptor + ".jpg", bbox_inches='tight', pad_inches=0)
+    plt.close()
 
 #Function to calculate determinant of tensor matrix
 #Input: Auto-correlation matrix
@@ -459,6 +448,9 @@ def estimatedPointError(origCoor, matchCoor, transMat):
     estimatedCoor[1] = origCoor[1] * transMat[1][0] + origCoor[0] * transMat[1][1] + transMat[1][2]
     estimatedCoor[2] = origCoor[1] * transMat[2][0] + origCoor[0] * transMat[2][1] + transMat[2][2]
     
+    print(f'Orig: {origCoor}')
+    print(f'Estimated: {estimatedCoor}')
+    
     #Return pixel distance between matched coordinate and estimated coordinate
     return np.sqrt(np.pow(estimatedCoor[1] - matchCoor[0], 2) + np.pow(estimatedCoor[0] - matchCoor[1], 2))
 
@@ -494,7 +486,7 @@ def truePositiveCount(pointDistances, tpThresh):
 #Output: None
 def plotMatches(img1, img2, matchList, featCoor1, featCoor2, outPath, descriptor):
     #Initialize new image to hold output and set each side equal to an initial image
-    imgHeight, imgWidth = img1.shape[:2]
+    imgHeight, imgWidth = img2.shape[:2]
     imgMatch = np.zeros((imgHeight, 2 * imgWidth, 3), dtype=np.uint8)
     for y in range(imgHeight):
         for x in range(imgWidth):
@@ -504,6 +496,7 @@ def plotMatches(img1, img2, matchList, featCoor1, featCoor2, outPath, descriptor
             
     #Load new image into MatPlot
     plt.imshow(imgMatch)
+    plt.axis('off')
     
     #For every match, plot the descriptor points and a line connecting them
     for i in range(len(matchList)):
@@ -519,9 +512,11 @@ def plotMatches(img1, img2, matchList, featCoor1, featCoor2, outPath, descriptor
         plt.plot(imgWidth + featCoor2[matchList[i][1]][1], featCoor2[matchList[i][1]][0], marker='x', color='yellow', linewidth=1)
         plt.plot(xCoors, yCoors, color="yellow")
         
-    plt.savefig(outPath + "Matches" + descriptor + ".jpg")
+    #Save image
+    plt.savefig(outPath + "Matches" + descriptor + ".jpg", bbox_inches='tight', pad_inches=0)
+    plt.close()
         
-    
+        
 
 #Get paths for input images, output directory, and small/large-scale sigma values
 srcDir = os.path.dirname(os.path.abspath(__file__))
@@ -579,13 +574,12 @@ featCoor2, featCoorMask2 = featureMeasure2Points(rVals2, npoints)
 
 imgOutputs.append(featCoorMask1)
 imgNames.append("FeaturePointMask1")
-imgOutputs.append(projectFeaturePoints(img1, featCoorMask1, 2))
-imgNames.append("FeaturePoints1")
+projectFeaturePoints(img1, featCoorMask1, "1")
+
 
 imgOutputs.append(featCoorMask2)
 imgNames.append("FeaturePointMask2")
-imgOutputs.append(projectFeaturePoints(img2, featCoorMask2, 2))
-imgNames.append("FeaturePoints2")
+projectFeaturePoints(img2, featCoorMask2, "2")
 
 
 #Generate list of descriptors, then matrix of distances
