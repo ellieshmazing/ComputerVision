@@ -272,7 +272,43 @@ def euclidianDistance(desc1, desc2):
     #Return total distance
     return totalDist
 
-#Function to calculate descriptor distances between two image descriptor lists
+#Funcrion to determine dominant horizontal/vertical edge angle to estimate transformation
+#Input: Image gradient orientation, magnitude, and magnitude threshold for inclusion in calculations
+#Output: Dominant horizontal and vertical angle (in radians from 0 - 2pi)
+def determineDominantAngles(gradOrient, gradMagnitude, threshold):
+    #Extract image size
+    imgHeight, imgWidth = gradOrient.shape[:2]
+    
+    #Create arrays to hold vert/horiz histogram
+    vertHist = np.zeros(12, dtype=np.float64)
+    horizHist = np.zeros(12, dtype=np.float64)
+    
+    #Iterate through image positions and add magnitude to appropriate bin
+    for y in range(imgHeight):
+        for x in range(imgWidth):
+            #Ensure magnitude is greater than threshold
+            if (gradMagnitude[y][x] > threshold):
+                pixelOrient = np.divide(gradOrient[y][x], np.pi / 6)
+                
+                #Add magnitude into appropriate bin (1-6 vert are pi/4 - 3pi/4, 1-6 horiz are 3pi/4 - 5pi/4, 7-12 vert are 5pi/4 - 7pi/4, 7-12 vert are 7pi/4 - pi/4)
+                if (pixelOrient >= np.pi / 4 and pixelOrient < 3 * np.pi / 4):
+                    pixelBin = int(np.round(pixelOrient - 1))
+                    vertHist[pixelBin] += gradMagnitude[y][x]
+                    
+                elif (pixelOrient >= 3 * np.pi / 4 and pixelOrient < 5 * np.pi / 4):
+                    pixelBin = int(np.round(pixelOrient - 3))
+                    horizHist[pixelBin] += gradMagnitude[y][x]
+                    
+                elif (pixelOrient >= 5 * np.pi / 4 and pixelOrient < 7 * np.pi / 4):
+                    pixelBin = int(np.round(pixelOrient - 5))
+                    vertHist[5 + pixelBin] += gradMagnitude[y][x]
+                    
+                else:
+                    pixelBin = int(np.round(pixelOrient - 7))
+                    horizHist[5 + pixelBin] += gradMagnitude[y][x]
+                
+
+#ANTIQUATED Function to calculate descriptor distances between two image descriptor lists
 #Input: Dlist of image 1 and Dlist of image 2
 #Output: Matrix, where Dist(i,j) is the distance between the ith descriptor of image 1 and the jth descriptor of image 2
 #TO-DO: TAILOR TO NEW DESCRIPTOR GENERATOR
