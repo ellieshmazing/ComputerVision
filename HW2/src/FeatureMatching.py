@@ -573,8 +573,109 @@ def plotMatches(img1, img2, matchList, featCoor1, featCoor2, outPath, descriptor
     #Save image
     plt.savefig(outPath + "Matches" + descriptor + ".jpg", bbox_inches='tight', pad_inches=0)
     plt.close()
+    
+#Function to calculate neighboring pixels based on interpolation
+#Input: Coordinates of pixel, edge image (from tensor trace), gradient magnitude image, and gradient orienation imag
+#Output: Values of interpolated pixel neighbors
+def interpolateNeighboringPixels(qY, qX, imgEdge, gradMagnitude, gradOrient):
+    #Get central pixel gradient magnitude and orientation
+    qOr = gradOrient[qY][qX]
+    
+    #Calculate directional distances to succeeding pixel
+    yDiff = np.sin(qOr)
+    xDiff = np.cos(qOr)
+    
+    #Determine neighboring pixel locations
+    pY = qY + yDiff
+    pX = qX + xDiff
+    
+    rY = qY - yDiff
+    rX = qX - xDiff
+    
+    #Determine neighboring pixel edge values by interpolating from three nearest pixels (unless p & r align with real pixel)
+    if (yDiff != 1 and yDiff != -1):
+        pixelP = interpolatePixelValue (pY, pX, imgEdge, gradMagnitude, gradOrient)
+        pixelR = interpolatePixelValue (rY, rX, imgEdge, gradMagnitude, gradOrient)
+    else:
+        pixelP = imgEdge[pY][pX]
+        pixelR = imgEdge[rY][rX]
+    
+    #Return neighboring pixel values
+    return pixelP, pixelR
+    
+#Function to get pixel distance between coordinates
+#Input: X and Y coordinates of two points
+#Output: Pixel distance between points
+def pixelDistance(y1, x1, y2, x2):
+    return np.sqrt(np.pow(y1 - y2, 2) + np.pow(x1 - x2, 2))
+    
+#Function to determine interpolated value of unaligned pixel
+#Input: Coordinates of pixel, edge image, gradient magnitude, and gradient orientation
+#Output: Interpolated pixel value
+def interpolatePixelValue(y, x, imgEdge, gradMagnitude, gradOrient):
+    #Get positions of bounding four pixels
+    tlY = np.ceil(y)
+    tlX = np.floor(x)
+    
+    trY = np.ceil(y)
+    trX = np.ceil(x)
+    
+    brY = np.floor(y)
+    brX = np.ceil(x)
+    
+    blY = np.floor(y)
+    blX = np.floor(x)
+    
+    #Calculate distance from each bounding pixel
+    tlDist = pixelDistance(y, x, tlY, tlX)
+    trDist = pixelDistance(y, x, trY, trX)
+    blDist = pixelDistance(y, x, blY, blX)
+    brDist = pixelDistance(y, x, brY, brX)
+    
+    #Calculate estimated value based on each bounding pixel's gradMag and gradOrient
+    tlEst = imgEdge[tlY][tlX] + (np.cos(gradOrient[tlY][tlX]) * gradMagnitude[tlY][tlX] * (tlY - y)) + (np.sin(gradOrient[tlY][tlX]) * gradMagnitude[tlY][tlX] * (x - tlX))
+    trEst = imgEdge[trY][trX] + (np.cos(gradOrient[trY][trX]) * gradMagnitude[trY][trX] * (trY - y)) + (np.sin(gradOrient[trY][trX]) * gradMagnitude[trY][trX] * (trX - x))
+    brEst = imgEdge[brY][brX] + (np.cos(gradOrient[brY][brX]) * gradMagnitude[brY][brX] * (y - brY)) + (np.sin(gradOrient[brY][brX]) * gradMagnitude[brY][brX] * (x - brX))
+    blEst = imgEdge[blY][blX] + (np.cos(gradOrient[blY][blX]) * gradMagnitude[blY][blX] * (y - blY)) + (np.sin(gradOrient[blY][blX]) * gradMagnitude[blY][blX] * (blX - x))
+    
+    #Calculate interpolated value by weighted average based on distance to bounding pixels
+    totDist = tlDist + trDist + blDist + brDist
+    return (tlEst * (tlDist / totDist)) + (trEst * (trDist / totDist)) + (brEst * (brDist / totDist)) + (blEst * (blDist / totDist))
         
-        
+#Function to perform non-maximum suppression
+#Input: Image
+#Output: Edge image with non-maximally suppressed lines
+def nonMaxSuppression(img, sigma):
+    #Extract image size information
+    imgHeight, imgWidth = img.shape[:2]
+    
+    #Get edge image from tensor trace
+    imgEdge = tensorTrace(topLeftElem(img, sigma), bottomRightElem(img, sigma))
+    
+    #Get gradient magnitude and orientation images
+    gradMagnitude, gradOrient = gradMagOrHelper(img)
+    
+    #Iterate through every internal pixel and discard if not max along gradient
+    for y in range(1, imgHeight - 1):
+        for x in range(1, imgWidth - 1):
+            #Get current pixel edge value
+            pixelQ = imgEdge[y][x]
+            
+            #Check if pixel is edge, otherwise skip iteration
+            if (pixelQ == 0):
+                continue
+            
+            #Determine value of preceeding and succeeding pixels
+            pixelP, pixelR = interpolateNeighboringPixels(y, x, imgEdge, gradMagnitude, gradOrient)
+            
+            #Set to 0 if not max pixel
+            if (pixelQ < pixelP or pixelQ < pixelR):
+                imgEdge[y][x] = 0
+                
+    #Return max-only edge image
+    return imgEdge
+             
+
 
 #Get paths for input images, output directory, and small/large-scale sigma values
 srcDir = os.path.dirname(os.path.abspath(__file__))
@@ -598,15 +699,15 @@ img2 = cv.imread(inPath2)
 gradMagnitude1, gradOrient1 = gradMagOrHelper(img1)
 gradMagnitude2, gradOrient2 = gradMagOrHelper(img2)
 
-maxVert1, maxHoriz1 = determineDominantAngles(gradOrient1, gradMagnitude1, 0)
+'''maxVert1, maxHoriz1 = determineDominantAngles(gradOrient1, gradMagnitude1, 0)
 maxVert2, maxHoriz2 = determineDominantAngles(gradOrient2, gradMagnitude2, 0)
 
 print(maxVert1 / (np.pi / 6))
 print(maxHoriz1/ (np.pi / 6))
 print(maxVert2/ (np.pi / 6))
-print(maxHoriz2/ (np.pi / 6)) 
+print(maxHoriz2/ (np.pi / 6)) '''
 
-'''#Create arrays to hold output images and their filenames, and add input
+#Create arrays to hold output images and their filenames, and add input
 imgOutputs = []
 imgNames = []
 
@@ -679,4 +780,4 @@ print(f'For nearest match, number correct out of {len(matchList2PD)} matches: {t
 print(f'For nearest neighbor ratio, number correct out of {len(matchList3PD)} matches: {truePositiveCount(matchList3PD, 5)}')
 
 #Save all output images
-saveImages(outPath, imgOutputs, imgNames)'''
+saveImages(outPath, imgOutputs, imgNames)
