@@ -57,13 +57,11 @@ def topLeftElem(img, sigma):
     xGradSquareG = np.power(xGradG, 2)
     xGradSquareR = np.power(xGradR, 2)
     
-    #Apply Gaussian filter to each squared channel
-    smoothB = cv.GaussianBlur(xGradSquareB, (0,0), sigma)
-    smoothG = cv.GaussianBlur(xGradSquareG, (0,0), sigma)
-    smoothR = cv.GaussianBlur(xGradSquareR, (0,0), sigma)
+    #Sum values
+    xGradSum = np.add(xGradSquareB, np.add(xGradSquareG, xGradSquareR))
     
     #Sum each color channel to produce final tensor and return (POSSIBLE MIN: = 0 POSSIBLE MAX = 3121200)
-    return np.add(smoothB, np.add(smoothG, smoothR))
+    return cv.GaussianBlur(xGradSum, (0,0), sigma)
 
 #Function to compute gradient magnitude
 #Input: x- and y-gradients
@@ -85,13 +83,11 @@ def bottomRightElem(img, sigma):
     yGradSquareG = np.power(yGradG, 2)
     yGradSquareR = np.power(yGradR, 2)
     
-    #Apply Gaussian filter to each squared channel (POSSIBLE MIN: = 0 POSSIBLE MAX = 1040400)
-    smoothB = cv.GaussianBlur(yGradSquareB, (0,0), sigma)
-    smoothG = cv.GaussianBlur(yGradSquareG, (0,0), sigma)
-    smoothR = cv.GaussianBlur(yGradSquareR, (0,0), sigma)
+    #Sum values
+    yGradSum = np.add(yGradSquareB, np.add(yGradSquareG, yGradSquareR))
     
     #Sum each color channel to produce final tensor and return (POSSIBLE MIN: = 0 POSSIBLE MAX = 3121200)
-    return np.add(smoothB, np.add(smoothG, smoothR))
+    return cv.GaussianBlur(yGradSum, (0,0), sigma)
 
 #Function to compute top-left/bottom-right tensor elements
 #Input: RGB image and sigma value for Gaussian filter
@@ -112,13 +108,11 @@ def otherElems(img, sigma):
     xyMultG = np.multiply(xGradG, yGradG)
     xyMultR = np.multiply(xGradR, yGradR)
     
-    #Apply Gaussian filter to each squared channel (POSSIBLE MIN: = -1040400 POSSIBLE MAX = 1040400)
-    smoothB = cv.GaussianBlur(xyMultB, (0,0), sigma)
-    smoothG = cv.GaussianBlur(xyMultG, (0,0), sigma)
-    smoothR = cv.GaussianBlur(xyMultR, (0,0), sigma)
+    #Sum values
+    xyMultSum = np.add(xyMultB, np.add(xyMultG, xyMultR))
     
     #Sum each color channel to produce final tensor and return (POSSIBLE MIN: = -3121200 POSSIBLE MAX = 3121200)
-    return np.add(smoothB, np.add(smoothG, smoothR))
+    return cv.GaussianBlur(xyMultSum, (0,0), sigma)
 
 #Function to apply 2D Color Structure Tensor
 #Input: RGB image and sigma value for Gaussian filter + Output and filename array

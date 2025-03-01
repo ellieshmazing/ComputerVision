@@ -288,24 +288,46 @@ def determineDominantAngles(gradOrient, gradMagnitude, threshold):
         for x in range(imgWidth):
             #Ensure magnitude is greater than threshold
             if (gradMagnitude[y][x] > threshold):
-                pixelOrient = np.divide(gradOrient[y][x], np.pi / 6)
+                pixelOrient = np.divide(gradOrient[y][x] + (2 * np.pi), np.pi / 6)
                 
                 #Add magnitude into appropriate bin (1-6 vert are pi/4 - 3pi/4, 1-6 horiz are 3pi/4 - 5pi/4, 7-12 vert are 5pi/4 - 7pi/4, 7-12 vert are 7pi/4 - pi/4)
-                if (pixelOrient >= np.pi / 4 and pixelOrient < 3 * np.pi / 4):
+                if (gradOrient[y][x] >= np.pi / 4 and gradOrient[y][x] < 3 * np.pi / 4):
                     pixelBin = int(np.round(pixelOrient - 1))
-                    vertHist[pixelBin] += gradMagnitude[y][x]
+                    vertHist[pixelBin % 6] += gradMagnitude[y][x]
                     
-                elif (pixelOrient >= 3 * np.pi / 4 and pixelOrient < 5 * np.pi / 4):
+                elif (gradOrient[y][x] >= 3 * np.pi / 4 and gradOrient[y][x] < 5 * np.pi / 4):
                     pixelBin = int(np.round(pixelOrient - 3))
-                    horizHist[pixelBin] += gradMagnitude[y][x]
+                    horizHist[pixelBin % 6] += gradMagnitude[y][x]
                     
-                elif (pixelOrient >= 5 * np.pi / 4 and pixelOrient < 7 * np.pi / 4):
+                elif (gradOrient[y][x] >= 5 * np.pi / 4 and gradOrient[y][x] < 7 * np.pi / 4):
                     pixelBin = int(np.round(pixelOrient - 5))
-                    vertHist[5 + pixelBin] += gradMagnitude[y][x]
+                    vertHist[5 + (pixelBin % 6)] += gradMagnitude[y][x]
                     
                 else:
                     pixelBin = int(np.round(pixelOrient - 7))
-                    horizHist[5 + pixelBin] += gradMagnitude[y][x]
+                    horizHist[5 + (pixelBin % 6)] += gradMagnitude[y][x]
+                    
+    #Determine maximum index of histogram
+    maxVert = 0
+    maxHoriz = 0
+    maxVertInd = np.argmax(vertHist)
+    maxHorizInd = np.argmax(horizHist)
+    
+    
+    if (maxVertInd < 6):
+        maxVert = (maxVertInd + 1) * (np.pi / 6)
+    else:
+        maxVert = (5 * np.pi / 4) + (maxVertInd - 5) * (np.pi / 6)
+        
+    if (maxHorizInd < 6):
+        maxHoriz = (maxHorizInd + 1) * (np.pi / 6)
+    elif (maxHorizInd < 9):
+        maxHoriz = (5 * np.pi / 4) + (maxHorizInd - 5) * (np.pi / 6)
+    else:
+        maxHoriz = (maxVertInd - 9) * (np.pi / 6)
+        
+    #Return dominant angles
+    return maxVert, maxHoriz
                 
 
 #ANTIQUATED Function to calculate descriptor distances between two image descriptor lists
@@ -573,8 +595,18 @@ if (not os.path.exists(outPath)):
 img1 = cv.imread(inPath1)
 img2 = cv.imread(inPath2)
 
+gradMagnitude1, gradOrient1 = gradMagOrHelper(img1)
+gradMagnitude2, gradOrient2 = gradMagOrHelper(img2)
 
-#Create arrays to hold output images and their filenames, and add input
+maxVert1, maxHoriz1 = determineDominantAngles(gradOrient1, gradMagnitude1, 0)
+maxVert2, maxHoriz2 = determineDominantAngles(gradOrient2, gradMagnitude2, 0)
+
+print(maxVert1 / (np.pi / 6))
+print(maxHoriz1/ (np.pi / 6))
+print(maxVert2/ (np.pi / 6))
+print(maxHoriz2/ (np.pi / 6)) 
+
+'''#Create arrays to hold output images and their filenames, and add input
 imgOutputs = []
 imgNames = []
 
@@ -647,4 +679,4 @@ print(f'For nearest match, number correct out of {len(matchList2PD)} matches: {t
 print(f'For nearest neighbor ratio, number correct out of {len(matchList3PD)} matches: {truePositiveCount(matchList3PD, 5)}')
 
 #Save all output images
-saveImages(outPath, imgOutputs, imgNames)
+saveImages(outPath, imgOutputs, imgNames)'''
