@@ -112,11 +112,11 @@ def computeFeatureResponseNMS(img, matrix):
     
     return np.subtract(tensorDet, np.multiply(alpha, np.power(tensorTrc, 2)))
 
-#Function to return list of coordinates of most locally unique feature points
+#ANTIQUATED Function to return list of coordinates of most locally unique feature points
 #Input: Array of R-values for an image and npoints number of feature points to return
 #Output: List of feature point coordinates and binary mask showing location
 #TO-DO: IMPLEMENT ANMS
-def featureMeasure2Points(R, npoints):
+def featureMeasure2PointsANT(R, npoints):
     #Initialize list to hold feature coordinates
     featCoor = []
     
@@ -134,6 +134,90 @@ def featureMeasure2Points(R, npoints):
     for x in range(len(featCoor)):
         #Ensure feature is far enough away from image borders to be represented with SIFT
         if (featCoor[x][0] > 8 and featCoor[x][0] < imgWidth - 8 and featCoor[x][1] > 8 and featCoor[x][1] < imgHeight - 8):
+            coorVal = []
+            coorVal.append(featCoor[x])
+            coorVal.append(R[featCoor[x][0]][featCoor[x][1]])
+            featCoorVal.append(coorVal)
+        
+    #Sort feature coordinates by R-value, descending
+    featCoorSorted = sorted(featCoorVal, key = lambda x: x[1], reverse = True)
+    
+    #Declare array to hold properly formatted feature coordinates and image of point mask
+    featCoorFinal = []
+    featMask = np.zeros(R.shape[:2], dtype=np.uint8)
+    
+    #Iterate through list of feature coordinates and add points to output array and mask
+    for x in range(npoints):
+        featCoorFinal.append(featCoorSorted[x][0])
+        featMask[featCoorSorted[x][0][0]][featCoorSorted[x][0][1]] = 255
+    
+    #Return npoint largest maxima
+    return featCoorFinal, featMask
+
+#Function to determine minimum suppression radius where each feature point is usable
+#Input: Array of R-values and local maxima coordinates
+#Output: Local maxima array sorted by suppression radius size, descending
+def featurePointANMS(R, localMaxCoor):
+    #Initialize array to hold Rvals of local maxima and results
+    featCoorVals = np.zeros((len(localMaxCoor), 4), dtype=np.float32)
+    
+    #Populate array of local max values (multiplied by .9 to "robustify" the suppression)
+    for i in range(len(localMaxCoor)):
+        featCoorVals[i][0] = localMaxCoor[i][0]
+        featCoorVals[i][1] = localMaxCoor[i][1]
+        featCoorVals[i][2] = (.9 * R[localMaxCoor[i][0]][localMaxCoor[i][1]])
+        
+    #Sort feature coordinates by R-value, descending
+    featCoorSorted = sorted(featCoorVals, key = lambda x: x[2], reverse = True)
+    
+    #Set global maximum to "infinity"
+    featCoorSorted[0][3] = 10000
+    
+    #Determine minimum distance (or suppression radius) for each feature coordinate
+    for i in range(1, len(featCoorSorted)):
+        #Set radius to infinity
+        minDist = 10000
+        
+        #Check distance from all points with R-values sufficiently large enough to determine minimum suppression radius
+        for j in range(i):
+            #Cancel execution if no larger point is more than 10% larger
+            if (R[featCoorSorted[i][0]][featCoorSorted[i][1]] > featCoorSorted[j][2]):
+                break
+            
+            #Lower suppression radius if less than current minimum
+            dist = pixelDistance(featCoorSorted[i][0], featCoorSorted[i][1], featCoorSorted[j][0], featCoorSorted[j][1])
+            if (dist < minDist):
+                minDist = dist
+                
+        #Record minimum suppression radius
+        featCoorSorted[i][3] = minDist
+        
+    #Sort feature coordinates by minimum suppression radius, descending
+    featCoorSortedFinal = sorted(featCoorSorted, key = lambda x: x[3], reverse = True)
+    
+    return featCoorSortedFinal
+
+#Function to return list of coordinates of most locally unique feature points using ANMS
+#Input: Array of R-values for an image and npoints number of feature points to return
+#Output: List of feature point coordinates and binary mask showing location
+def featureMeasure2Points(R, npoints):
+    #Initialize list to hold feature coordinates
+    featCoor = []
+    
+    #Initialize threshold based on global maximum
+    threshVal = np.max(R) * .01
+    
+    #Calculate local maxima
+    featCoor = peak_local_max(R, threshold_abs = threshVal)
+        
+    #Extract image size
+    imgHeight, imgWidth = R.shape[:2]
+    
+    #Connect feature coordinates to R-value
+    featCoorVal = []
+    for x in range(len(featCoor)):
+        #Ensure feature is far enough away from image borders to be represented with SIFT
+        if (featCoor[x][0] > 8 and featCoor[x][0] < imgHeight - 8 and featCoor[x][1] > 8 and featCoor[x][1] < imgWidth - 8):
             coorVal = []
             coorVal.append(featCoor[x])
             coorVal.append(R[featCoor[x][0]][featCoor[x][1]])
@@ -519,8 +603,9 @@ def estimatedPointError(origCoor, matchCoor, transMat):
     estimatedCoor[1] = origCoor[1] * transMat[1][0] + origCoor[0] * transMat[1][1] + transMat[1][2]
     estimatedCoor[2] = origCoor[1] * transMat[2][0] + origCoor[0] * transMat[2][1] + transMat[2][2]
     
-    #print(f'Orig: {origCoor}')
-    #print(f'Estimated: {estimatedCoor}')
+    print(f'Orig: {origCoor}')
+    print(f'Matched: {matchCoor}')
+    print(f'Estimated: {estimatedCoor}')
     
     #Return pixel distance between matched coordinate and estimated coordinate
     return np.sqrt(np.pow(estimatedCoor[1] - matchCoor[0], 2) + np.pow(estimatedCoor[0] - matchCoor[1], 2))
@@ -779,9 +864,9 @@ Dist = computeDescriptorDistances(Dlist1, Dlist2)
 
 #Perform matching between descriptor lists
 print("Matching between descriptor lists...")
-matchList1 = Distance2Matches_DistThresh(Dist, 40000)
-matchList2 = Distance2Matches_NearestMatch(Dist, 40000)
-matchList3 = Distance2Matches_NearestRatio(Dist, .9)
+matchList1 = Distance2Matches_DistThresh(Dist, 30000)
+matchList2 = Distance2Matches_NearestMatch(Dist, 30000)
+matchList3 = Distance2Matches_NearestRatio(Dist, .8)
 
 
 #Read in transformation matrix file
@@ -803,7 +888,7 @@ print(f'For nearest neighbor ratio, number correct out of {len(matchList3PD)} ma
 
 
 #Save results to text file
-resultsText = open(outPath + "Results.txt", "a")
+resultsText = open(outPath + "Results.txt", "w")
 resultsText.write(f'For distance threshold, number correct out of {len(matchList1PD)} matches: {truePositiveCount(matchList1PD, 5)}\n')
 resultsText.write(f'For nearest match, number correct out of {len(matchList2PD)} matches: {truePositiveCount(matchList2PD, 5)}\n')
 resultsText.write(f'For nearest neighbor ratio, number correct out of {len(matchList3PD)} matches: {truePositiveCount(matchList3PD, 5)}\n')
