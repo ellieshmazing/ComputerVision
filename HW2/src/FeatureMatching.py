@@ -169,7 +169,7 @@ def featurePointANMS(R, localMaxCoor):
         
     #Sort feature coordinates by R-value, descending
     featCoorSorted = sorted(featCoorVals, key = lambda x: x[2], reverse = True)
-    
+
     #Set global maximum to "infinity"
     featCoorSorted[0][3] = 10000
     
@@ -181,7 +181,7 @@ def featurePointANMS(R, localMaxCoor):
         #Check distance from all points with R-values sufficiently large enough to determine minimum suppression radius
         for j in range(i):
             #Cancel execution if no larger point is more than 10% larger
-            if (R[featCoorSorted[i][0]][featCoorSorted[i][1]] > featCoorSorted[j][2]):
+            if (R[int(featCoorSorted[i][0])][int(featCoorSorted[i][1])] > featCoorSorted[j][2]):
                 break
             
             #Lower suppression radius if less than current minimum
@@ -194,7 +194,7 @@ def featurePointANMS(R, localMaxCoor):
         
     #Sort feature coordinates by minimum suppression radius, descending
     featCoorSortedFinal = sorted(featCoorSorted, key = lambda x: x[3], reverse = True)
-    
+
     return featCoorSortedFinal
 
 #Function to return list of coordinates of most locally unique feature points using ANMS
@@ -207,33 +207,40 @@ def featureMeasure2Points(R, npoints):
     #Initialize threshold based on global maximum
     threshVal = np.max(R) * .01
     
-    #Calculate local maxima
+    #Calculate local maxima and sort by suppression radius
     featCoor = peak_local_max(R, threshold_abs = threshVal)
-        
+    featCoorSup = featurePointANMS(R, featCoor)
+
     #Extract image size
     imgHeight, imgWidth = R.shape[:2]
     
-    #Connect feature coordinates to R-value
+    #Exclude features too close to edge
     featCoorVal = []
-    for x in range(len(featCoor)):
+    for x in range(len(featCoorSup)):
         #Ensure feature is far enough away from image borders to be represented with SIFT
-        if (featCoor[x][0] > 8 and featCoor[x][0] < imgHeight - 8 and featCoor[x][1] > 8 and featCoor[x][1] < imgWidth - 8):
-            coorVal = []
-            coorVal.append(featCoor[x])
-            coorVal.append(R[featCoor[x][0]][featCoor[x][1]])
-            featCoorVal.append(coorVal)
-        
-    #Sort feature coordinates by R-value, descending
-    featCoorSorted = sorted(featCoorVal, key = lambda x: x[1], reverse = True)
-    
+        if (featCoorSup[x][0] > 8 and featCoorSup[x][0] < imgHeight - 8 and featCoorSup[x][1] > 8 and featCoorSup[x][1] < imgWidth - 8):
+            coor = []
+            coor.append(int(featCoorSup[x][0]))
+            coor.append(int(featCoorSup[x][1]))
+            coor.append(R[coor[0]][coor[1]])
+            featCoorVal.append(coor)
+
     #Declare array to hold properly formatted feature coordinates and image of point mask
     featCoorFinal = []
     featMask = np.zeros(R.shape[:2], dtype=np.uint8)
     
-    #Iterate through list of feature coordinates and add points to output array and mask
+    #Lower npoints if not enough are available
+    if (len(featCoorVal) < npoints):
+        npoints = len(featCoorVal)
+    
+    #Iterate through list of feature coordinates and add points to output array and mask    
     for x in range(npoints):
-        featCoorFinal.append(featCoorSorted[x][0])
-        featMask[featCoorSorted[x][0][0]][featCoorSorted[x][0][1]] = 255
+        coor = []
+        coor.append(featCoorVal[x][0])
+        coor.append(featCoorVal[x][1])
+        
+        featCoorFinal.append(coor)
+        featMask[featCoorVal[x][0]][featCoorVal[x][1]] = 255
     
     #Return npoint largest maxima
     return featCoorFinal, featMask
