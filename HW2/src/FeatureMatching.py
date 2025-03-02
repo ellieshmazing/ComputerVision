@@ -65,7 +65,7 @@ def projectFeaturePoints(img, featMask, descriptor):
                 plt.plot(x, y, marker = 'x', color = 'yellow')
               
     #Save modified image then close plot
-    plt.savefig(outPath + "FeaturePoints" + descriptor + ".jpg", bbox_inches='tight', pad_inches=0)
+    plt.savefig(outPath + "FeaturePoints" + descriptor + ".jpg", dpi=1000, bbox_inches='tight', pad_inches=0)
     plt.close()
 
 #Function to calculate determinant of tensor matrix
@@ -98,6 +98,19 @@ def computeFeatureResponse(matrix):
     alpha = 0.05
     
     return np.subtract(tensorDeterminant(matrix), np.multiply(alpha, np.power(tensorTrace(matrix[0], matrix[3]), 2)))
+
+#Function to detect corners using Harris-Stephens Detector and non-maximum suppression
+#Input: Auto-correlation matrix of input image
+#Output: Array of R values for whole image
+def computeFeatureResponseNMS(img, matrix):
+    #Set value of empirical constant [0.04, 0.06]
+    alpha = 0.05
+    
+    #Apply NMS to tensor determinant and matrix
+    tensorDet = nonMaxSuppression(img, tensorDeterminant(matrix))
+    tensorTrc = nonMaxSuppression(img, tensorTrace(matrix[0], matrix[3]))
+    
+    return np.subtract(tensorDet, np.multiply(alpha, np.power(tensorTrc, 2)))
 
 #Function to return list of coordinates of most locally unique feature points
 #Input: Array of R-values for an image and npoints number of feature points to return
@@ -506,8 +519,8 @@ def estimatedPointError(origCoor, matchCoor, transMat):
     estimatedCoor[1] = origCoor[1] * transMat[1][0] + origCoor[0] * transMat[1][1] + transMat[1][2]
     estimatedCoor[2] = origCoor[1] * transMat[2][0] + origCoor[0] * transMat[2][1] + transMat[2][2]
     
-    print(f'Orig: {origCoor}')
-    print(f'Estimated: {estimatedCoor}')
+    #print(f'Orig: {origCoor}')
+    #print(f'Estimated: {estimatedCoor}')
     
     #Return pixel distance between matched coordinate and estimated coordinate
     return np.sqrt(np.pow(estimatedCoor[1] - matchCoor[0], 2) + np.pow(estimatedCoor[0] - matchCoor[1], 2))
@@ -571,7 +584,7 @@ def plotMatches(img1, img2, matchList, featCoor1, featCoor2, outPath, descriptor
         plt.plot(xCoors, yCoors, color="yellow")
         
     #Save image
-    plt.savefig(outPath + "Matches" + descriptor + ".jpg", bbox_inches='tight', pad_inches=0)
+    plt.savefig(outPath + "Matches" + descriptor + ".jpg", dpi=1000, bbox_inches='tight', pad_inches=0)
     plt.close()
     
 #Function to calculate neighboring pixels based on interpolation
@@ -597,8 +610,8 @@ def interpolateNeighboringPixels(qY, qX, imgEdge, gradMagnitude, gradOrient):
         pixelP = interpolatePixelValue (pY, pX, imgEdge, gradMagnitude, gradOrient)
         pixelR = interpolatePixelValue (rY, rX, imgEdge, gradMagnitude, gradOrient)
     else:
-        pixelP = imgEdge[pY][pX]
-        pixelR = imgEdge[rY][rX]
+        pixelP = imgEdge[int(pY)][int(pX)]
+        pixelR = imgEdge[int(rY)][int(rX)]
     
     #Return neighboring pixel values
     return pixelP, pixelR
@@ -614,17 +627,17 @@ def pixelDistance(y1, x1, y2, x2):
 #Output: Interpolated pixel value
 def interpolatePixelValue(y, x, imgEdge, gradMagnitude, gradOrient):
     #Get positions of bounding four pixels
-    tlY = np.ceil(y)
-    tlX = np.floor(x)
+    tlY = int(np.ceil(y))
+    tlX = int(np.floor(x))
     
-    trY = np.ceil(y)
-    trX = np.ceil(x)
+    trY = int(np.ceil(y))
+    trX = int(np.ceil(x))
     
-    brY = np.floor(y)
-    brX = np.ceil(x)
+    brY = int(np.floor(y))
+    brX = int(np.ceil(x))
     
-    blY = np.floor(y)
-    blX = np.floor(x)
+    blY = int(np.floor(y))
+    blX = int(np.floor(x))
     
     #Calculate distance from each bounding pixel
     tlDist = pixelDistance(y, x, tlY, tlX)
@@ -638,19 +651,22 @@ def interpolatePixelValue(y, x, imgEdge, gradMagnitude, gradOrient):
     brEst = imgEdge[brY][brX] + (np.cos(gradOrient[brY][brX]) * gradMagnitude[brY][brX] * (y - brY)) + (np.sin(gradOrient[brY][brX]) * gradMagnitude[brY][brX] * (x - brX))
     blEst = imgEdge[blY][blX] + (np.cos(gradOrient[blY][blX]) * gradMagnitude[blY][blX] * (y - blY)) + (np.sin(gradOrient[blY][blX]) * gradMagnitude[blY][blX] * (blX - x))
     
-    #Calculate interpolated value by weighted average based on distance to bounding pixels
+    #Calculate interpolated value by weighted average based on inverse distance to bounding pixels
+    totDistPrelim = tlDist + trDist + blDist + brDist
+    tlDist = 1 / (tlDist / totDistPrelim)
+    trDist = 1 / (trDist / totDistPrelim)
+    blDist = 1 / (blDist / totDistPrelim)
+    brDist = 1 / (brDist / totDistPrelim)
     totDist = tlDist + trDist + blDist + brDist
+    
     return (tlEst * (tlDist / totDist)) + (trEst * (trDist / totDist)) + (brEst * (brDist / totDist)) + (blEst * (blDist / totDist))
         
 #Function to perform non-maximum suppression
 #Input: Image
 #Output: Edge image with non-maximally suppressed lines
-def nonMaxSuppression(img, sigma):
+def nonMaxSuppression(img, imgEdge):
     #Extract image size information
-    imgHeight, imgWidth = img.shape[:2]
-    
-    #Get edge image from tensor trace
-    imgEdge = tensorTrace(topLeftElem(img, sigma), bottomRightElem(img, sigma))
+    imgHeight, imgWidth = imgEdge.shape[:2]
     
     #Get gradient magnitude and orientation images
     gradMagnitude, gradOrient = gradMagOrHelper(img)
@@ -696,10 +712,10 @@ if (not os.path.exists(outPath)):
 img1 = cv.imread(inPath1)
 img2 = cv.imread(inPath2)
 
-gradMagnitude1, gradOrient1 = gradMagOrHelper(img1)
+'''gradMagnitude1, gradOrient1 = gradMagOrHelper(img1)
 gradMagnitude2, gradOrient2 = gradMagOrHelper(img2)
 
-'''maxVert1, maxHoriz1 = determineDominantAngles(gradOrient1, gradMagnitude1, 0)
+maxVert1, maxHoriz1 = determineDominantAngles(gradOrient1, gradMagnitude1, 0)
 maxVert2, maxHoriz2 = determineDominantAngles(gradOrient2, gradMagnitude2, 0)
 
 print(maxVert1 / (np.pi / 6))
@@ -718,11 +734,13 @@ imgNames.append("Input2")
 
 
 #Generate auto-correlation matrices
+print("Generating auto-correlation matrices...")
 matrix1 = genAutoCorrelationMatrix(img1, sigma1)
 matrix2 = genAutoCorrelationMatrix(img2, sigma2)
 
 
 #Calculate feature response and save to output
+print("Calculating feature response r-values...")
 rVals1 = computeFeatureResponse(matrix1)
 rVals2 = computeFeatureResponse(matrix2)
 
@@ -738,6 +756,7 @@ imgNames.append("EdgesLCS2")
 
 
 #Calculate local maxima and save mask to output
+print("Calculating local maxima...")
 featCoor1, featCoorMask1 = featureMeasure2Points(rVals1, npoints)
 featCoor2, featCoorMask2 = featureMeasure2Points(rVals2, npoints)
 
@@ -752,18 +771,21 @@ projectFeaturePoints(img2, featCoorMask2, "2")
 
 
 #Generate list of descriptors, then matrix of distances
+print("Generating feature descriptors...")
 Dlist1 = generateFeatureDescriptors(img1, featCoor1)
 Dlist2 = generateFeatureDescriptors(img2, featCoor2)
 Dist = computeDescriptorDistances(Dlist1, Dlist2)
 
 
 #Perform matching between descriptor lists
-matchList1 = Distance2Matches_DistThresh(Dist, 30000)
-matchList2 = Distance2Matches_NearestMatch(Dist, 30000)
-matchList3 = Distance2Matches_NearestRatio(Dist, .8)
+print("Matching between descriptor lists...")
+matchList1 = Distance2Matches_DistThresh(Dist, 40000)
+matchList2 = Distance2Matches_NearestMatch(Dist, 40000)
+matchList3 = Distance2Matches_NearestRatio(Dist, .9)
 
 
 #Read in transformation matrix file
+print("Comparing to estimated values from transformation matrix...")
 transMat = readTransMatFile(transMatPath)
 matchList1PD = matchListPointDistances(matchList1, featCoor1, featCoor2, transMat)
 matchList2PD = matchListPointDistances(matchList2, featCoor1, featCoor2, transMat)
@@ -778,6 +800,15 @@ plotMatches(img1, img2, matchList3, featCoor1, featCoor2, outPath, "NearestRatio
 print(f'For distance threshold, number correct out of {len(matchList1PD)} matches: {truePositiveCount(matchList1PD, 5)}')
 print(f'For nearest match, number correct out of {len(matchList2PD)} matches: {truePositiveCount(matchList2PD, 5)}')
 print(f'For nearest neighbor ratio, number correct out of {len(matchList3PD)} matches: {truePositiveCount(matchList3PD, 5)}')
+
+
+#Save results to text file
+resultsText = open(outPath + "Results.txt", "a")
+resultsText.write(f'For distance threshold, number correct out of {len(matchList1PD)} matches: {truePositiveCount(matchList1PD, 5)}\n')
+resultsText.write(f'For nearest match, number correct out of {len(matchList2PD)} matches: {truePositiveCount(matchList2PD, 5)}\n')
+resultsText.write(f'For nearest neighbor ratio, number correct out of {len(matchList3PD)} matches: {truePositiveCount(matchList3PD, 5)}\n')
+resultsText.close()
+
 
 #Save all output images
 saveImages(outPath, imgOutputs, imgNames)
