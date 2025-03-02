@@ -610,9 +610,9 @@ def estimatedPointError(origCoor, matchCoor, transMat):
     estimatedCoor[1] = origCoor[1] * transMat[1][0] + origCoor[0] * transMat[1][1] + transMat[1][2]
     estimatedCoor[2] = origCoor[1] * transMat[2][0] + origCoor[0] * transMat[2][1] + transMat[2][2]
     
-    print(f'Orig: {origCoor}')
-    print(f'Matched: {matchCoor}')
-    print(f'Estimated: {estimatedCoor}')
+    #print(f'Orig: {origCoor}')
+    #print(f'Matched: {matchCoor}')
+    #print(f'Estimated: {estimatedCoor}')
     
     #Return pixel distance between matched coordinate and estimated coordinate
     return np.sqrt(np.pow(estimatedCoor[1] - matchCoor[0], 2) + np.pow(estimatedCoor[0] - matchCoor[1], 2))
@@ -673,7 +673,7 @@ def plotMatches(img1, img2, matchList, featCoor1, featCoor2, outPath, descriptor
         
         plt.plot(featCoor1[matchList[i][0]][1], featCoor1[matchList[i][0]][0], marker='x', color='yellow')
         plt.plot(imgWidth + featCoor2[matchList[i][1]][1], featCoor2[matchList[i][1]][0], marker='x', color='yellow', linewidth=1)
-        plt.plot(xCoors, yCoors, color="yellow")
+        plt.plot(xCoors, yCoors, linewidth='.5', color="yellow")
         
     #Save image
     plt.savefig(outPath + "Matches" + descriptor + ".jpg", dpi=1000, bbox_inches='tight', pad_inches=0)

@@ -1,0 +1,3 @@
+For distance threshold, number correct out of 2312 matches: 28
+For nearest match, number correct out of 112 matches: 21
+For nearest neighbor ratio, number correct out of 14 matches: 9
