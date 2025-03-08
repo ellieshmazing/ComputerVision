@@ -1,5 +1,6 @@
 #This code is adapted from PyTorch's CIFAR-10 tutorial
 import torch
+
 import torch.optim as optim
 import torch.nn as nn
 import torch.nn.functional as F
@@ -36,16 +37,6 @@ def imshow(img):
     plt.imshow(np.transpose(npimg, (1, 2, 0)))
     plt.show()
 
-'''
-# get some random training images
-dataiter = iter(trainloader)
-images, labels = next(dataiter)
-
-# show images
-imshow(torchvision.utils.make_grid(images))
-# print labels
-print(' '.join(f'{classes[labels[j]]:5s}' for j in range(batch_size)))
-'''
 
 ########################################################################
 # 2. Define a Convolutional Neural Network
@@ -69,7 +60,11 @@ class Net(nn.Module):
         x = self.fc3(x)
         return x
 
-net = Net()
+#Defines TPU device
+dev = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+print(dev)
+
+net = Net().to(dev)
 
 ########################################################################
 # 3. Define a Loss function and optimizer
@@ -85,7 +80,7 @@ for epoch in range(2):  # loop over the dataset multiple times
     running_loss = 0.0
     for i, data in enumerate(trainloader, 0):
         # get the inputs; data is a list of [inputs, labels]
-        inputs, labels = data
+        inputs, labels = data[0].to(dev), data[1].to(dev)
 
         # zero the parameter gradients
         optimizer.zero_grad()
@@ -169,27 +164,3 @@ with torch.no_grad():
 for classname, correct_count in correct_pred.items():
     accuracy = 100 * float(correct_count) / total_pred[classname]
     print(f'Accuracy for class: {classname:5s} is {accuracy:.1f} %')
-
-########################################################################
-# Training on GPU
-
-device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-print(device)
-
-########################################################################
-# The rest of this section assumes that ``device`` is a CUDA device.
-#
-# Then these methods will recursively go over all modules and convert their
-# parameters and buffers to CUDA tensors:
-#
-# .. code:: python
-#
-#     net.to(device)
-#
-#
-# Remember that you will have to send the inputs and targets at every step
-# to the GPU too:
-#
-# .. code:: python
-#
-#         inputs, labels = data[0].to(device), data[1].to(device)
