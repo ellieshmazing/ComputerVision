@@ -11,6 +11,8 @@ import torchvision.transforms as transforms
 import matplotlib.pyplot as plt
 import numpy as np
 
+import timeit
+
 ########################################################################
 # 1. Load Dataset
 
@@ -75,7 +77,9 @@ optimizer = optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
 ########################################################################
 # 4. Train the network
 
-for epoch in range(2):  # loop over the dataset multiple times
+'''start = timeit.default_timer()
+
+for epoch in range(4):  # loop over the dataset multiple times
 
     running_loss = 0.0
     for i, data in enumerate(trainloader, 0):
@@ -97,11 +101,13 @@ for epoch in range(2):  # loop over the dataset multiple times
             print(f'[{epoch + 1}, {i + 1:5d}] loss: {running_loss / 2000:.3f}')
             running_loss = 0.0
 
-print('Finished Training')
+stop = timeit.default_timer()
+
+print(f'Finished Training in {stop - start}')
 
 # Save trained model:
 PATH = './cifar_net.pth'
-torch.save(net.state_dict(), PATH)
+torch.save(net.state_dict(), PATH)'''
 
 ########################################################################
 # 5. Test the network on the test data
@@ -115,17 +121,17 @@ imshow(torchvision.utils.make_grid(images))
 print('GroundTruth: ', ' '.join(f'{classes[labels[j]]:5s}' for j in range(4)))
 '''
 
-'''
-net = Net()
+PATH = './cifar_net.pth'
+net = Net().to(dev)
 net.load_state_dict(torch.load(PATH, weights_only=True))
-'''
+
 
 correct = 0
 total = 0
 # since we're not training, we don't need to calculate the gradients for our outputs
 with torch.no_grad():
     for data in testloader:
-        images, labels = data
+        images, labels = data[0].to(dev), data[1].to(dev)
         # calculate outputs by running images through the network
         outputs = net(images)
         # the class with the highest energy is what we choose as prediction
@@ -150,7 +156,7 @@ total_pred = {classname: 0 for classname in classes}
 # again no gradients needed
 with torch.no_grad():
     for data in testloader:
-        images, labels = data
+        images, labels = data[0].to(dev), data[1].to(dev)
         outputs = net(images)
         _, predictions = torch.max(outputs, 1)
         # collect the correct predictions for each class
@@ -164,3 +170,34 @@ with torch.no_grad():
 for classname, correct_count in correct_pred.items():
     accuracy = 100 * float(correct_count) / total_pred[classname]
     print(f'Accuracy for class: {classname:5s} is {accuracy:.1f} %')
+
+
+
+
+# prepare to calculate confusion matrix
+conf_matrix = np.zeros((10,10), dtype=np.float32)
+
+total_pred = {classname: 0 for classname in classes}
+
+# again no gradients needed
+with torch.no_grad():
+    for data in testloader:
+        images, labels = data[0].to(dev), data[1].to(dev)
+        outputs = net(images)
+        _, predictions = torch.max(outputs, 1)
+        # collect the correct predictions for each class
+        for label, prediction in zip(labels, predictions):
+            if label == prediction:
+                correct_pred[classes[label]] += 1
+            else:
+                conf_matrix[classes.index(classes[label])][classes.index(classes[prediction])] += 1
+            total_pred[classes[label]] += 1
+
+
+# print accuracy for each class
+for classname, correct_count in correct_pred.items():
+    accuracy = 100 * float(correct_count) / total_pred[classname]
+    print(f'Accuracy for class: {classname:5s} is {accuracy:.1f} %')
+    for classnameSUB in classes:
+        confusion = 100 * float()
+        print(f'Confusion percentage for {classname} is {conf_matrix[classes.index(classes[classname])][classes.index(classes[classnameSUB])]} %')
